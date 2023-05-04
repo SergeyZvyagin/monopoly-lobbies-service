@@ -15,26 +15,54 @@ class DatabaseManager:
         self.cursor = self.conn.cursor()
 
     
-    def getUserInfoByID(self, id: int) -> tuple:
-        self.cursor.execute('SELECT nickname, is_guest, rating FROM users WHERE id=%d' % int(id))
+    def getUserInfoByID(self, user_id: int) -> tuple:
+        self.cursor.execute('SELECT nickname, is_guest, rating FROM users WHERE id=%d;' % int(user_id))
         return self.cursor.fetchone()
     
 
-    def findNewOwnerOrDeleteLobby(self, lobby: int):
-        pass
-    
+    def getFullLobbyInfo(self, lobby_id: int) -> tuple:
+        self.cursor.execute('''SELECT name, owner_id, lobby_type, password, max_players, 
+                                      time_for_turn, victory_type, score_victory_value, 
+                                      turn_victory_value, is_running, game_address, game_port
+                               FROM lobbies WHERE id = %d;''', (lobby_id))
+        return self.cursor.fetchone()
 
-    def disconnectUserReturningLobbyID(self, user_id: int) -> int:
-        pass
+    
+    def raiseUserToLobbyOwner(self, user_id, lobby_id):
+        self.cursor.execute("UPDATE lobbies SET owner_id = %d WHERE id = %d;", (user_id, lobby_id))
+        self.conn.commit()
+
+    
+    def deleteLobby(self, lobby_id: int):
+        self.cursor.execute(f'DELETE FROM lobbies WHERE id = {lobby_id};')
+        self.conn.commit()
+
+
+    def findNewOwnerOrDeleteLobby(self, lobby_id: int):
+        self.cursor.execute(f'SELECT player_id FROM players_in_lobbies WHERE lobby_id = {lobby_id};')
+        row = self.cursor.fetchall()
+        if row:
+            self.raiseUserToLobbyOwner(row[0], lobby_id)
+        else:
+            self.deleteLobby(lobby_id)
+
+
+    def disconnectUser(self, user_id: int):
+        self.cursor.execute(f'DELETE FROM players_in_lobbies WHERE player_id = {user_id} RETURNING lobby_id;')
+        lobby_id = self.cursor.fetchone()[0]
+        self.conn.commit()
+        
+        _, lobby_owner_id, *_ = self.getFullLobbyInfo(lobby_id)
+        if user_id == lobby_owner_id:
+            self.findNewOwnerOrDeleteLobby(lobby_id)
 
    
     def connectUserToLobby(self, user_id int, lobby_id: int):
         try:
-            self.findNewOwnerOrDeleteLobby(self.disconnectUserReturningLobbyID(user_id))
+            self.disconnectUser(user_id)
         except:
             pass
-        self.cursor.execute(f'INSERT INTO players_in_lobbies (i) VALUES (%d, %d);')
-        user_id = self.cursor.fetchone()[0]
+        self.cursor.execute(f'INSERT INTO players_in_lobbies (player_id, lobby_id) VALUES ({user_id}, {lobby_id});'
         self.conn.commit()
 
 
@@ -70,25 +98,3 @@ class DatabaseManager:
         applied_settings["turnVictoryValue"] = lobby_info[9]
 
         return lobby_id, applied_settings
-
-
-    def createUserAndReturnID(self, nickname: str, vk_id:int=None) -> int:
-        vk_id = int(vk_id)
-        variables = 'nickname' + (', vk_id, is_guest' if vk_id else '')
-        values = f"'{nickname}'" + ('' if not vk_id else f', {vk_id}, false')
-
-        self.cursor.execute(f'INSERT INTO users ({variables}) VALUES ({values}) RETURNING id;')
-        user_id = self.cursor.fetchone()[0]
-        self.conn.commit()
-        
-        return user_id
-    
-    def changeNickname(self, user_id: int, nickname: str):
-        user_id = int(user_id)
-        nickname = nickname.replace("'", '"')
-        if len(nickname) > 16:
-            nickname = nickname[:16]
-        self.cursor.execute(f"UPDATE users SET nickname='{nickname}' WHERE id={user_id};")
-        self.conn.commit()
-
-    
