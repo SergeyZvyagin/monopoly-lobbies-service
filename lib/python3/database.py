@@ -24,8 +24,13 @@ class DatabaseManager:
         self.cursor.execute(f'SELECT lobby_id FROM players_in_lobbies WHERE player_id = {user_id};')
         row = self.cursor.fetchone()
         return None if not row else row[0]
-        
 
+
+    def getCurrentLobbyIDAndOwnerIDbyUserID(self, user_id: int) -> int:
+        self.cursor.execute(f'SELECT l.id, l.owner_id FROM lobbies AS l INNER JOIN players_in_lobbies AS pil ON l.id = pil.lobby_id WHERE pil.player_id = {user_id};')
+        return self.cursor.fetchone()
+
+        
     def getList(self) -> tuple:
         self.cursor.execute('''SELECT l.id, l.name, l.lobby_type, 
                                       l.max_players, count(pil.player_id) 
@@ -46,7 +51,7 @@ class DatabaseManager:
 
     
     def raiseUserToLobbyOwner(self, user_id: int, lobby_id: int):
-        self.cursor.execute("UPDATE lobbies SET owner_id = %d WHERE id = %d;", (user_id, lobby_id))
+        self.cursor.execute(f'UPDATE lobbies SET owner_id = {user_id} WHERE id = {lobby_id};')
         self.conn.commit()
 
     
@@ -86,12 +91,29 @@ class DatabaseManager:
                 self.findNewOwnerOrDeleteLobby(lobby_id)
 
    
-    def connectUserToLobby(self, user_id: int, lobby_id: int):
+    def connectUserToLobby(self, user_id: int, lobby_id: int): 
         self.disconnectUser(user_id)
         self.cursor.execute(f'INSERT INTO players_in_lobbies (player_id, lobby_id) VALUES ({user_id}, {lobby_id});')
         self.conn.commit()
 
 
+    def updateLobby(self, lobby_id: int, settings: dict):    
+        self.cursor.execute("""UPDATE lobbies 
+                               SET name='%s', lobby_type=%d, password='%s', 
+                                   max_players=%d, time_for_turn=%d, victory_type=%d,
+                                   score_victory_value=%d, turn_victory_value=%d 
+                               WHERE id = %d ;""" % (settings["name"].replace("'", "''"),
+                                                     settings["type"],
+                                                     settings["password"].replace("'", "''"),
+                                                     settings["maxPlayers"],
+                                                     settings["timeForTurn"],
+                                                     settings["victoryType"],
+                                                     settings["scoreVictoryValue"],
+                                                     settings["turnVictoryValue"],
+                                                     lobby_id))
+        self.conn.commit()
+
+    
     def createLobby(self, owner_id: int, settings: dict = None) -> int:
         variables = 'name, owner_id' + ('' if not settings else ', lobby_type, password, max_players, time_for_turn, victory_type, score_victory_value, turn_victory_value')
         

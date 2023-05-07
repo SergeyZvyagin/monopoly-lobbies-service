@@ -66,6 +66,60 @@ class Listener(pb2_grpc.LobbiesServiceServicer):
         return lobbies_pb
 
 
+    async def Connect(self, request, context):
+        user_id = request.requesterID
+        lobby_id = request.lobbyID
+        self.logger.info("Connect request from user #%d to lobby #%d" % (user_id, lobby_id))
+        lobby_info = self.db.getFullLobbyInfo(lobby_id)
+        if not lobby_info:
+            return pb2.AboutLobbyResponse(status=pb2.ExitStatus.RESOURCE_NOT_AVAILABLE)
+
+        if (lobby_info[2] == pb2.LobbyType.Value('PRIVATE') + 1) and (lobby_info[3] != request.password):
+            return pb2.AboutLobbyResponse(status=pb2.ExitStatus.FORBIDDEN)
+
+        if lobby_info[0] != user_id:
+            self.db.connectUserToLobby(user_id, lobby_id)
+        try:
+            full_current_lobby_info = getFullCurrentLobbyInfo(self.db, lobby_id)
+            return pb2.AboutLobbyResponse(lobbyInfo=full_current_lobby_info)
+        except Exception:
+            return pb2.AboutLobbyResponse(status=pb2.ExitStatus.DB_LEVEL_ERROR)
+    
+    
+    async def GetInfo(self, request, context):
+        user_id = request.requesterID
+        lobby_id = self.db.getLobbyIDbyUserID(user_id)
+        if lobby_id:
+            full_current_lobby_info = getFullCurrentLobbyInfo(self.db, lobby_id)
+            return pb2.AboutLobbyResponse(lobbyInfo=full_current_lobby_info)
+        else:
+            return pb2.AboutLobbyResponse(status=pb2.ExitStatus.RESOURCE_NOT_AVAILABLE)
+
+
+    async def UpdateSettings(self, request, context):
+        user_id = request.requesterID
+        self.logger.info("UpdateSettings request from user #%d" % user_id)
+        info = self.db.getCurrentLobbyIDAndOwnerIDbyUserID(user_id)
+        if info:
+            lobby_id, owner_id = info
+            if owner_id == user_id:
+                try:
+                    settings = validateSettings(request.settings, self.config)
+                    self.logger.info("Settigs is validate")
+                    self.db.updateLobby(lobby_id, settings)
+                    return pb2.StatusOnlyResponse()
+                except ValueError as e:
+                        self.logger.error("Settings validation error: %s" % e)
+                        return pb2.StatusOnlyResponse(status=pb2.ExitStatus.BAD_VALUE)
+                except Exception:
+                    self.logger.error("DB level error: %s" % e)
+                    return pb2.StatusOnlyResponse(status=pb2.ExitStatus.DB_LEVEL_ERROR)
+            else:
+                return pb2.StatusOnlyResponse(status=pb2.ExitStatus.FORBIDDEN)
+        else:
+            return pb2.StatusOnlyResponse(status=pb2.ExitStatus.RESOURCE_NOT_AVAILABLE) 
+
+
 def getFullCurrentLobbyInfo(dbm: db.DatabaseManager, lobby_id: int) -> pb2.FullCurrentLobbyInfo:
     lobby_info = dbm.getFullLobbyInfo(lobby_id)
     if not lobby_info:

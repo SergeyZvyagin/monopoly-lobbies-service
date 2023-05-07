@@ -16,7 +16,7 @@ class LobbiesServiceStub(object):
         """
         self.Create = channel.unary_unary(
                 '/LobbiesMicroservice.LobbiesService/Create',
-                request_serializer=LobbiesMicroservice__pb2.CreateRequest.SerializeToString,
+                request_serializer=LobbiesMicroservice__pb2.SetSettingsRequest.SerializeToString,
                 response_deserializer=LobbiesMicroservice__pb2.AboutLobbyResponse.FromString,
                 )
         self.GetList = channel.unary_unary(
@@ -36,8 +36,8 @@ class LobbiesServiceStub(object):
                 )
         self.UpdateSettings = channel.unary_unary(
                 '/LobbiesMicroservice.LobbiesService/UpdateSettings',
-                request_serializer=LobbiesMicroservice__pb2.UpdateSettingsRequest.SerializeToString,
-                response_deserializer=LobbiesMicroservice__pb2.UpdateSettingsResponse.FromString,
+                request_serializer=LobbiesMicroservice__pb2.SetSettingsRequest.SerializeToString,
+                response_deserializer=LobbiesMicroservice__pb2.StatusOnlyResponse.FromString,
                 )
         self.ConnectToRanked = channel.unary_unary(
                 '/LobbiesMicroservice.LobbiesService/ConnectToRanked',
@@ -167,7 +167,7 @@ def add_LobbiesServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'Create': grpc.unary_unary_rpc_method_handler(
                     servicer.Create,
-                    request_deserializer=LobbiesMicroservice__pb2.CreateRequest.FromString,
+                    request_deserializer=LobbiesMicroservice__pb2.SetSettingsRequest.FromString,
                     response_serializer=LobbiesMicroservice__pb2.AboutLobbyResponse.SerializeToString,
             ),
             'GetList': grpc.unary_unary_rpc_method_handler(
@@ -187,8 +187,8 @@ def add_LobbiesServiceServicer_to_server(servicer, server):
             ),
             'UpdateSettings': grpc.unary_unary_rpc_method_handler(
                     servicer.UpdateSettings,
-                    request_deserializer=LobbiesMicroservice__pb2.UpdateSettingsRequest.FromString,
-                    response_serializer=LobbiesMicroservice__pb2.UpdateSettingsResponse.SerializeToString,
+                    request_deserializer=LobbiesMicroservice__pb2.SetSettingsRequest.FromString,
+                    response_serializer=LobbiesMicroservice__pb2.StatusOnlyResponse.SerializeToString,
             ),
             'ConnectToRanked': grpc.unary_unary_rpc_method_handler(
                     servicer.ConnectToRanked,
@@ -252,7 +252,7 @@ class LobbiesService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/LobbiesMicroservice.LobbiesService/Create',
-            LobbiesMicroservice__pb2.CreateRequest.SerializeToString,
+            LobbiesMicroservice__pb2.SetSettingsRequest.SerializeToString,
             LobbiesMicroservice__pb2.AboutLobbyResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
@@ -320,8 +320,8 @@ class LobbiesService(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/LobbiesMicroservice.LobbiesService/UpdateSettings',
-            LobbiesMicroservice__pb2.UpdateSettingsRequest.SerializeToString,
-            LobbiesMicroservice__pb2.UpdateSettingsResponse.FromString,
+            LobbiesMicroservice__pb2.SetSettingsRequest.SerializeToString,
+            LobbiesMicroservice__pb2.StatusOnlyResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
