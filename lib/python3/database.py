@@ -54,6 +54,11 @@ class DatabaseManager:
         self.cursor.execute(f'UPDATE lobbies SET owner_id = {user_id} WHERE id = {lobby_id};')
         self.conn.commit()
 
+
+    def kickUserFromLobby(self, user_id: int, lobby_id: int):
+        self.cursor.execute(f'DELETE FROM players_in_lobbies WHERE player_id = {user_id} AND lobby_id = {lobby_id};')
+        self.conn.commit()
+
     
     def deleteLobby(self, lobby_id: int):
         self.cursor.execute(f'DELETE FROM lobbies WHERE id = {lobby_id};')

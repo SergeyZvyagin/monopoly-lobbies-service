@@ -141,9 +141,61 @@ class Listener(pb2_grpc.LobbiesServiceServicer):
             return pb2.StatusOnlyResponse()
         return pb2.StatusOnlyResponse(status=pb2.ExitStatus.FORBIDDEN)         
 
+    
+    async def RaisePlayer(self, request, context):
+        user_id = request.requesterID
+        target_id = request.targetPlayerID
+        self.logger.info("RaisePlayer #%d request from user #%d" % (target_id, user_id))
+        if user_id == target_id:
+            return pb2.StatusOnlyResponse(status=pb2.ExitStatus.BAD_VALUE)
+ 
+        info = self.db.getCurrentLobbyIDAndOwnerIDbyUserID(target_id)
+        if info:
+            lobby_id, owner_id = info
+            if owner_id == user_id:
+                self.db.raiseUserToLobbyOwner(target_id, lobby_id)
+                return pb2.StatusOnlyResponse()
+            else:
+                return pb2.StatusOnlyResponse(status=pb2.ExitStatus.FORBIDDEN)
+        else:
+            return pb2.StatusOnlyResponse(status=pb2.ExitStatus.RESOURCE_NOT_AVAILABLE)
+    
+    
+    async def KickPlayer(self, request, context):
+        user_id = request.requesterID
+        target_id = request.targetPlayerID
+        self.logger.info("KickPlayer #%d request from user #%d" % (target_id, user_id))
+        if user_id == target_id:
+            return pb2.StatusOnlyResponse(status=pb2.ExitStatus.BAD_VALUE)
+        
+        info = self.db.getCurrentLobbyIDAndOwnerIDbyUserID(target_id)
+        if info:
+            lobby_id, owner_id = info
+            if owner_id == user_id:
+                self.db.kickUserFromLobby(target_id, lobby_id)
+                return pb2.StatusOnlyResponse()
+            else:
+                return pb2.StatusOnlyResponse(status=pb2.ExitStatus.FORBIDDEN)
+        else:
+            return pb2.StatusOnlyResponse(status=pb2.ExitStatus.RESOURCE_NOT_AVAILABLE)
+    
+    
+    async def Delete(self, request, context):
+        user_id = request.requesterID
+        self.logger.info("Delete #%d request from user #%d" % (target_id, user_id))        
+        info = self.db.getCurrentLobbyIDAndOwnerIDbyUserID(user_id)
+        if info:
+            lobby_id, owner_id = info
+            if owner_id == user_id:
+                self.db.deleteLobby(lobby_id)
+                return pb2.StatusOnlyResponse()
+            else:
+                return pb2.StatusOnlyResponse(status=pb2.ExitStatus.FORBIDDEN)
+        else:
+            return pb2.StatusOnlyResponse(status=pb2.ExitStatus.RESOURCE_NOT_AVAILABLE)
 
 
-
+    
 def getFullCurrentLobbyInfo(dbm: db.DatabaseManager, lobby_id: int) -> pb2.FullCurrentLobbyInfo:
     lobby_info = dbm.getFullLobbyInfo(lobby_id)
     if not lobby_info:
