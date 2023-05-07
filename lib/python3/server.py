@@ -88,8 +88,10 @@ class Listener(pb2_grpc.LobbiesServiceServicer):
     
     async def GetInfo(self, request, context):
         user_id = request.requesterID
+        self.logger.info("GetInfo request from user #%d" % user_id)
         lobby_id = self.db.getLobbyIDbyUserID(user_id)
         if lobby_id:
+            self.db.lastActionRegister(user_id)
             full_current_lobby_info = getFullCurrentLobbyInfo(self.db, lobby_id)
             return pb2.AboutLobbyResponse(lobbyInfo=full_current_lobby_info)
         else:
@@ -117,7 +119,29 @@ class Listener(pb2_grpc.LobbiesServiceServicer):
             else:
                 return pb2.StatusOnlyResponse(status=pb2.ExitStatus.FORBIDDEN)
         else:
-            return pb2.StatusOnlyResponse(status=pb2.ExitStatus.RESOURCE_NOT_AVAILABLE) 
+            return pb2.StatusOnlyResponse(status=pb2.ExitStatus.RESOURCE_NOT_AVAILABLE)
+
+
+    async def Disconnect(self, request, context):
+        user_id = request.requesterID
+        self.logger.info("Disconnect request from user #%d" % user_id)
+        lobby_id = self.db.disconnectUser(user_id)
+        if lobby_id:
+            return pb2.StatusOnlyResponse()
+        else:
+            return pb2.StatusOnlyResponse(status=pb2.ExitStatus.RESOURCE_NOT_AVAILABLE)
+    
+
+    async def SwitchReadiness(self, request, context):
+        user_id = request.requesterID
+        self.logger.info("Disconnect request from user #%d" % user_id)
+        self.db.lastActionRegister(user_id)
+        ok = self.db.switchUserReadiness(user_id)
+        if ok:
+            return pb2.StatusOnlyResponse()
+        return pb2.StatusOnlyResponse(status=pb2.ExitStatus.FORBIDDEN)         
+
+
 
 
 def getFullCurrentLobbyInfo(dbm: db.DatabaseManager, lobby_id: int) -> pb2.FullCurrentLobbyInfo:

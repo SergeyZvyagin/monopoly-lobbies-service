@@ -79,7 +79,7 @@ class DatabaseManager:
             self.deleteLobby(lobby_id)
 
 
-    def disconnectUser(self, user_id: int):
+    def disconnectUser(self, user_id: int) -> int:
         self.cursor.execute(f'DELETE FROM players_in_lobbies WHERE player_id = {user_id} RETURNING lobby_id;')
         row = self.cursor.fetchone()
         self.conn.commit()
@@ -89,6 +89,33 @@ class DatabaseManager:
             lobby_owner_id, *_ = self.getFullLobbyInfo(lobby_id)
             if user_id == lobby_owner_id:
                 self.findNewOwnerOrDeleteLobby(lobby_id)
+            return lobby_id
+        else:
+            return None
+   
+    
+    def lastActionRegister(self, user_id: int):
+        self.cursor.execute(f'UPDATE players_in_lobbies SET last_action_at=now() WHERE player_id={user_id} RETURNING player_state;')
+        row = self.cursor.fetchone()
+        self.conn.commit()
+        if row and row[0] == 3: # if lost
+            self.cursor.execute(f'UPDATE players_in_lobbies SET player_state = 1 WHERE player_id={user_id};')
+            self.conn.commit()
+
+
+    def switchUserReadiness(self, user_id: int) -> bool:
+        self.cursor.execute(f'SELECT player_state FROM players_in_lobbies WHERE player_id={user_id};')
+        row = self.cursor.fetchone()
+        if row:
+            if row[0] == 1:
+                self.cursor.execute(f'UPDATE players_in_lobbies SET player_state = 2 WHERE player_id={user_id};')
+            elif row[0] == 2:
+                self.cursor.execute(f'UPDATE players_in_lobbies SET player_state = 1 WHERE player_id={user_id};')
+            else:
+                return False
+            self.conn.commit()
+            return True
+        return False
 
    
     def connectUserToLobby(self, user_id: int, lobby_id: int): 
