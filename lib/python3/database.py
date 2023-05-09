@@ -108,19 +108,26 @@ class DatabaseManager:
             self.conn.commit()
 
 
-    def switchUserReadiness(self, user_id: int) -> bool:
-        self.cursor.execute(f'SELECT player_state FROM players_in_lobbies WHERE player_id={user_id};')
+    def switchUserReadinessReturnLobbyID(self, user_id: int) -> int:
+        self.cursor.execute(f'''SELECT pil.player_state 
+                                FROM players_in_lobbies AS pil 
+                                LEFT JOIN lobbies AS l 
+                                    ON pil.lobby_id = l.id 
+                                WHERE l.is_running = false AND pil.player_id = {user_id};''')
         row = self.cursor.fetchone()
         if row:
             if row[0] == 1:
-                self.cursor.execute(f'UPDATE players_in_lobbies SET player_state = 2 WHERE player_id={user_id};')
+                self.cursor.execute(f'UPDATE players_in_lobbies SET player_state = 2 WHERE player_id={user_id} RETURNING lobby_id;')
             elif row[0] == 2:
-                self.cursor.execute(f'UPDATE players_in_lobbies SET player_state = 1 WHERE player_id={user_id};')
+                self.cursor.execute(f'UPDATE players_in_lobbies SET player_state = 1 WHERE player_id={user_id} RETURNING lobby_id;')
             else:
-                return False
+                return None
+            row = self.cursor.fetchone()
             self.conn.commit()
-            return True
-        return False
+            if row:
+                return row[0]
+            return None
+        return None
 
    
     def connectUserToLobby(self, user_id: int, lobby_id: int): 
@@ -144,8 +151,8 @@ class DatabaseManager:
                                                      settings["turnVictoryValue"],
                                                      lobby_id))
         self.conn.commit()
-
     
+
     def createLobby(self, owner_id: int, settings: dict = None) -> int:
         variables = 'name, owner_id' + ('' if not settings else ', lobby_type, password, max_players, time_for_turn, victory_type, score_victory_value, turn_victory_value')
         
@@ -168,3 +175,40 @@ class DatabaseManager:
         self.conn.commit() 
 
         return lobby_id
+
+
+    def checkAllPlayersReadiness(self, lobby_id: int) -> bool:
+        self.cursor.execute(f'''SELECT l.max_players, count(pil.player_id) 
+                                FROM lobbies AS l 
+                                LEFT JOIN players_in_lobbies AS pil 
+                                    ON l.id = pil.lobby_id 
+                                WHERE l.id = {lobby_id} AND pil.player_state = 2 
+                                GROUP BY l.max_players;''')
+        row = self.cursor.fetchone()
+        if row and row[0] == row[1]:
+            return True
+        return False
+
+
+    def runLobby(self, lobby_id: int, game_address: str, game_port: int):
+        self.cursor.execute(f'''UPDATE lobbies 
+                                SET is_running = true, 
+                                    game_address = {game_address}, 
+                                    game_port = {game_port} 
+                                WHERE id = {lobby_id};''')
+        self.conn.commit()
+
+
+    def checkUserInActiveGame(self, user_id: int) -> tuple:
+        self.cursor.execute(f'''SELECT l.game_address, l.game_port
+                                FROM lobbies AS l
+                                INNER JOIN players_in_lobbies AS pil
+                                    ON l.id = pil.lobby_id 
+                                WHERE pil.player_id = {user_id} 
+                                    AND l.is_running = true;''')
+        row = self.cursor.fetchone()
+        if row:
+            return row[0], row[1]
+        return "", 0
+        
+

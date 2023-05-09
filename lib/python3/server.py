@@ -52,7 +52,7 @@ class Listener(pb2_grpc.LobbiesServiceServicer):
 
     async def GetList(self, request, context):
         requester_id = request.requesterID
-        self.logger.info("GetList request from user #%d" % requester_id)
+        self.logger.debug("GetList request from user #%d" % requester_id)
         
         lobbies = self.db.getList()
         lobbies_pb = pb2.GetListResponse()
@@ -88,7 +88,7 @@ class Listener(pb2_grpc.LobbiesServiceServicer):
     
     async def GetInfo(self, request, context):
         user_id = request.requesterID
-        self.logger.info("GetInfo request from user #%d" % user_id)
+        self.logger.debug("GetInfo request from user #%d" % user_id)
         lobby_id = self.db.getLobbyIDbyUserID(user_id)
         if lobby_id:
             self.db.lastActionRegister(user_id)
@@ -109,6 +109,10 @@ class Listener(pb2_grpc.LobbiesServiceServicer):
                     settings = validateSettings(request.settings, self.config)
                     self.logger.info("Settigs is validate")
                     self.db.updateLobby(lobby_id, settings)
+
+                    if self.db.checkAllPlayersReadiness(lobby_id):
+                        runLobby(self.db, lobby_id)
+
                     return pb2.StatusOnlyResponse()
                 except ValueError as e:
                         self.logger.error("Settings validation error: %s" % e)
@@ -134,10 +138,12 @@ class Listener(pb2_grpc.LobbiesServiceServicer):
 
     async def SwitchReadiness(self, request, context):
         user_id = request.requesterID
-        self.logger.info("Disconnect request from user #%d" % user_id)
+        self.logger.info("SwitchReadiness request from user #%d" % user_id)
         self.db.lastActionRegister(user_id)
-        ok = self.db.switchUserReadiness(user_id)
-        if ok:
+        lobby_id = self.db.switchUserReadinessReturnLobbyID(user_id)
+        if lobby_id:
+            if self.db.checkAllPlayersReadiness(lobby_id):
+                runLobby(self.db, lobby_id)
             return pb2.StatusOnlyResponse()
         return pb2.StatusOnlyResponse(status=pb2.ExitStatus.FORBIDDEN)         
 
@@ -182,7 +188,7 @@ class Listener(pb2_grpc.LobbiesServiceServicer):
     
     async def Delete(self, request, context):
         user_id = request.requesterID
-        self.logger.info("Delete #%d request from user #%d" % (target_id, user_id))        
+        self.logger.info("Delete request from user #%d" % user_id)        
         info = self.db.getCurrentLobbyIDAndOwnerIDbyUserID(user_id)
         if info:
             lobby_id, owner_id = info
@@ -194,6 +200,40 @@ class Listener(pb2_grpc.LobbiesServiceServicer):
         else:
             return pb2.StatusOnlyResponse(status=pb2.ExitStatus.RESOURCE_NOT_AVAILABLE)
 
+
+    async def Run(self, requests, context):
+        user_id = request.requesterID
+        self.logger.info("Run request from user #%d" % user_id)        
+        info = self.db.getCurrentLobbyIDAndOwnerIDbyUserID(user_id)
+        if info:
+            lobby_id, owner_id = info
+            if owner_id == user_id:
+                runLobby(self.db, lobby_id)
+                return pb2.StatusOnlyResponse()
+            else:
+                return pb2.StatusOnlyResponse(status=pb2.ExitStatus.FORBIDDEN)
+        else:
+            return pb2.StatusOnlyResponse(status=pb2.ExitStatus.RESOURCE_NOT_AVAILABLE)
+    
+
+    async def CheckInActive(self, request, context):
+        user_id = request.requesterID
+        self.logger.info("CheckInActive request from user #%d" % user_id)
+        addres, port = self.db.checkUserInActiveGame(user_id)
+        resp = pb2.CheckInActiveResponse()
+        if address:
+            resp.connection = pb2.GameConnectionInfo(address=address, port=port)
+            return resp
+        resp.status = pb2.ExitStatus.RESOURCE_NOT_AVAILABLE
+        return status
+
+
+def runLobby(dbm: db.DatabaseManager, lobby_id: int) -> (str, int):
+    self.logger.info("Running lobby #%d" % lobby_id)
+    game_address = "ppcd.fun"
+    game_port = 65000
+    dbm.runLobby(lobby_id, game_address, game_port)
+    # gRPC request to Game Service
 
     
 def getFullCurrentLobbyInfo(dbm: db.DatabaseManager, lobby_id: int) -> pb2.FullCurrentLobbyInfo:
@@ -221,7 +261,7 @@ def getFullCurrentLobbyInfo(dbm: db.DatabaseManager, lobby_id: int) -> pb2.FullC
                                                        )
 
     if timer_is_activate and lobby_info[10] and lobby_info[11]:
-        full_current_lobby_info.connection = pb.GameConnectionInfo(address=lobby_info[10], port=lobby_info[11])
+        full_current_lobby_info.connection = pb2.GameConnectionInfo(address=lobby_info[10], port=lobby_info[11])
     
     players = dbm.getActivePlayersInLobby(lobby_id)
     for player_info in players:
