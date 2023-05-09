@@ -225,7 +225,7 @@ class Listener(pb2_grpc.LobbiesServiceServicer):
             resp.connection = pb2.GameConnectionInfo(address=address, port=port)
             return resp
         resp.status = pb2.ExitStatus.RESOURCE_NOT_AVAILABLE
-        return status
+        return resp 
 
 
 def runLobby(dbm: db.DatabaseManager, lobby_id: int) -> (str, int):
