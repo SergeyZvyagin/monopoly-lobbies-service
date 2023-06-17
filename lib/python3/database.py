@@ -191,11 +191,11 @@ class DatabaseManager:
 
 
     def runLobby(self, lobby_id: int, game_address: str, game_port: int):
-        self.cursor.execute(f'''UPDATE lobbies 
+        self.cursor.execute(f"""UPDATE lobbies 
                                 SET is_running = true, 
-                                    game_address = {game_address}, 
+                                    game_address = '{game_address}', 
                                     game_port = {game_port} 
-                                WHERE id = {lobby_id};''')
+                                WHERE id = {lobby_id};""")
         self.conn.commit()
 
 

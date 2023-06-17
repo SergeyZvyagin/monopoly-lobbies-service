@@ -108,8 +108,7 @@ class Listener(pb2_grpc.LobbiesServiceServicer):
                 try:
                     settings = validateSettings(request.settings, self.config)
                     self.logger.info("Settigs is validate")
-                    self.db.updateLobby(lobby_id, settings)
-
+                    self.db.updateLobby(lobby_id, settings) 
                     if self.db.checkAllPlayersReadiness(lobby_id):
                         runLobby(self.db, lobby_id)
 
@@ -117,7 +116,7 @@ class Listener(pb2_grpc.LobbiesServiceServicer):
                 except ValueError as e:
                         self.logger.error("Settings validation error: %s" % e)
                         return pb2.StatusOnlyResponse(status=pb2.ExitStatus.BAD_VALUE)
-                except Exception:
+                except Exception as e:
                     self.logger.error("DB level error: %s" % e)
                     return pb2.StatusOnlyResponse(status=pb2.ExitStatus.DB_LEVEL_ERROR)
             else:
@@ -201,7 +200,7 @@ class Listener(pb2_grpc.LobbiesServiceServicer):
             return pb2.StatusOnlyResponse(status=pb2.ExitStatus.RESOURCE_NOT_AVAILABLE)
 
 
-    async def Run(self, requests, context):
+    async def Run(self, request, context):
         user_id = request.requesterID
         self.logger.info("Run request from user #%d" % user_id)        
         info = self.db.getCurrentLobbyIDAndOwnerIDbyUserID(user_id)
@@ -219,17 +218,15 @@ class Listener(pb2_grpc.LobbiesServiceServicer):
     async def CheckInActive(self, request, context):
         user_id = request.requesterID
         self.logger.info("CheckInActive request from user #%d" % user_id)
-        addres, port = self.db.checkUserInActiveGame(user_id)
-        resp = pb2.CheckInActiveResponse()
+        address, port = self.db.checkUserInActiveGame(user_id)
+
         if address:
-            resp.connection = pb2.GameConnectionInfo(address=address, port=port)
-            return resp
-        resp.status = pb2.ExitStatus.RESOURCE_NOT_AVAILABLE
-        return resp 
+            connection_pb = pb2.GameConnectionInfo(address=address, port=port) 
+            return pb2.CheckInActiveResponse(connection=connection_pb)
+        return pb2.CheckInActiveResponse(status=pb2.ExitStatus.RESOURCE_NOT_AVAILABLE)
 
 
-def runLobby(dbm: db.DatabaseManager, lobby_id: int) -> (str, int):
-    self.logger.info("Running lobby #%d" % lobby_id)
+def runLobby(dbm: db.DatabaseManager, lobby_id: int) -> (str, int): 
     game_address = "ppcd.fun"
     game_port = 65000
     dbm.runLobby(lobby_id, game_address, game_port)
@@ -253,16 +250,18 @@ def getFullCurrentLobbyInfo(dbm: db.DatabaseManager, lobby_id: int) -> pb2.FullC
                                  )
     
     timer_is_activate = lobby_info[9]
+    
+    connection_pb = None
+    if timer_is_activate and lobby_info[10] and lobby_info[11]:
+        connection_pb = pb2.GameConnectionInfo(address=lobby_info[10], port=lobby_info[11])
 
     full_current_lobby_info = pb2.FullCurrentLobbyInfo(lobbyID=lobby_id,
                                                        ownerID=owner_id,
                                                        settings=settings_pb,
                                                        timerIsActivate=timer_is_activate,
+                                                       connection=connection_pb
                                                        )
-
-    if timer_is_activate and lobby_info[10] and lobby_info[11]:
-        full_current_lobby_info.connection = pb2.GameConnectionInfo(address=lobby_info[10], port=lobby_info[11])
-    
+        
     players = dbm.getActivePlayersInLobby(lobby_id)
     for player_info in players:
         user_entity = users_pb2.User(ID=player_info[0],
