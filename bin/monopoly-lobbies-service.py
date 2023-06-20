@@ -5,7 +5,7 @@ import toml
 import logging
 import sys
 
-sys.path.append("../lib/python3")
+sys.path.append("lib/python3")
 
 from server import run
 
